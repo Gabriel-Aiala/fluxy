@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --flux-bg: #f7f7f3;
+        --flux-surface: #ffffff;
+        --flux-border: #d8d8cf;
+        --flux-ink: #063b45;
+        --flux-muted: #2d6b72;
+        --flux-dark: #003a34;
+        --flux-green: #59ae33;
+        --flux-green-soft: #dcead2;
+        --flux-orange: #c15a21;
+        --flux-orange-soft: #f2dfd0;
+        --flux-neutral-soft: #dfe5de;
+    }
+
+    body {
+        background-color: var(--flux-bg);
+        color: var(--flux-ink);
+    }
+}
+
+@layer components {
+    .flux-shell {
+        @apply mx-auto w-full max-w-[1420px] px-4 sm:px-6 lg:px-8;
+    }
+
+    .flux-title {
+        @apply text-4xl font-bold tracking-tight;
+        color: var(--flux-ink);
+    }
+
+    .flux-subtitle {
+        @apply text-lg;
+        color: var(--flux-muted);
+    }
+
+    .flux-card {
+        @apply rounded-2xl border shadow-[0_1px_0_rgba(0,0,0,0.04)];
+        border-color: var(--flux-border);
+        background-color: var(--flux-surface);
+    }
+
+    .flux-card-soft {
+        @apply rounded-2xl border;
+        border-color: var(--flux-border);
+        background-color: #f2f3ef;
+    }
+
+    .flux-pill-nav {
+        @apply inline-flex items-center rounded-xl border px-4 py-2 text-sm font-semibold transition;
+        border-color: var(--flux-border);
+        background-color: #ffffff;
+        color: var(--flux-muted);
+    }
+
+    .flux-pill-nav:hover {
+        border-color: #9eb4a4;
+        color: var(--flux-ink);
+    }
+
+    .flux-pill-nav-active {
+        @apply shadow-sm;
+        border-color: #0c4b45;
+        background-color: #0b413b;
+        color: #ffffff;
+    }
+
+    .flux-primary-btn {
+        @apply inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition;
+        background-color: var(--flux-dark);
+    }
+
+    .flux-primary-btn:hover {
+        background-color: #06524a;
+    }
+
+    .flux-secondary-btn {
+        @apply inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition;
+        border-color: var(--flux-border);
+        background-color: #ffffff;
+        color: var(--flux-muted);
+    }
+
+    .flux-secondary-btn:hover {
+        border-color: #a8b8ab;
+        color: var(--flux-ink);
+    }
+
+    .flux-kpi {
+        @apply rounded-2xl border px-4 py-3;
+    }
+
+    .flux-kpi-income {
+        border-color: #b8d7a2;
+        background-color: var(--flux-green-soft);
+    }
+
+    .flux-kpi-expense {
+        border-color: #e5b18d;
+        background-color: var(--flux-orange-soft);
+    }
+
+    .flux-kpi-neutral {
+        border-color: #b8c5be;
+        background-color: var(--flux-neutral-soft);
+    }
+
+    .flux-table-wrap {
+        @apply overflow-hidden rounded-2xl border shadow-[0_1px_0_rgba(0,0,0,0.04)];
+        border-color: var(--flux-border);
+        background-color: var(--flux-surface);
+    }
+
+    .flux-table {
+        @apply min-w-full divide-y;
+        border-color: var(--flux-border);
+    }
+
+    .flux-table thead tr {
+        @apply text-left text-sm font-semibold uppercase tracking-wide;
+        color: var(--flux-muted);
+    }
+
+    .flux-table th {
+        @apply px-4 py-3;
+    }
+
+    .flux-table td {
+        @apply px-4 py-3 text-sm;
+        color: var(--flux-ink);
+    }
+
+    .flux-table tbody tr {
+        @apply border-t transition hover:bg-[#f4f5ef];
+        border-color: var(--flux-border);
+    }
+}

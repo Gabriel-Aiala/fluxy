@@ -1,0 +1,69 @@
+<x-app-layout>
+    <x-slot name="header">
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ __('Detalhes do Grupo de Transacao') }}
+        </h2>
+    </x-slot>
+
+    <div class="py-8">
+        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
+            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
+                <div class="p-6 text-gray-900 dark:text-gray-100 space-y-4">
+                    <div>
+                        <p class="text-sm text-gray-500">ID</p>
+                        <p class="font-medium">{{ $transactionGroup->id }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Organizacao</p>
+                        <p class="font-medium">{{ $transactionGroup->organization->name ?? '-' }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Tipo</p>
+                        <p class="font-medium">{{ $transactionGroup->type }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Descricao</p>
+                        <p class="font-medium">{{ $transactionGroup->description ?? '-' }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Data da Ocorrencia</p>
+                        <p class="font-medium">{{ $transactionGroup->occurred_on }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Parcelas</p>
+                        <p class="font-medium">
+                            Cliente: {{ $transactionGroup->customer_installments }} |
+                            Fluxo: {{ $transactionGroup->flow_installments }}
+                        </p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Antecipacao</p>
+                        <p class="font-medium">{{ $transactionGroup->anticipation ? 'sim' : 'nao' }}</p>
+                    </div>
+
+                    <div>
+                        <p class="text-sm text-gray-500">Transacoes vinculadas</p>
+                        <p class="font-medium">{{ $transactionGroup->transactions_count }}</p>
+                    </div>
+
+                    <div class="flex items-center gap-3 pt-2">
+                        <a href="{{ route('transaction-groups.index') }}"
+                            class="inline-flex items-center px-4 py-2 bg-gray-200 border border-transparent rounded-md font-semibold text-xs uppercase tracking-widest text-gray-700 hover:bg-gray-300">
+                            Voltar
+                        </a>
+                        <a href="{{ route('transaction-groups.edit', $transactionGroup->id) }}"
+                            class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs uppercase tracking-widest text-white hover:bg-indigo-500">
+                            Editar
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</x-app-layout>
