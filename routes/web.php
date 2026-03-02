@@ -14,12 +14,13 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\TransactionGroupController;
 use App\Models\Transaction;
 use Illuminate\Support\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 
 Route::redirect('/', '/login');
 
-Route::get('/dashboard', function () {
+Route::get('/dashboard', function (Request $request) {
     $monthNames = [
         1 => 'JAN',
         2 => 'FEV',
@@ -51,9 +52,22 @@ Route::get('/dashboard', function () {
     ];
 
     $organizationId = (int) (auth()->user()?->organization_id ?? 0);
+
+    $requestedMonth = $request->string('month')->toString();
     $currentMonth = now()->startOfMonth();
+    if (preg_match('/^\d{4}-\d{2}$/', $requestedMonth) === 1) {
+        try {
+            $currentMonth = Carbon::createFromFormat('Y-m', $requestedMonth)->startOfMonth();
+        } catch (\Throwable $exception) {
+            $currentMonth = now()->startOfMonth();
+        }
+    }
+
     $calendarStartOffset = (int) $currentMonth->copy()->startOfMonth()->dayOfWeekIso - 1;
     $calendarMonthLabel = ($monthFullNames[(int) $currentMonth->format('n')] ?? $currentMonth->format('m')).' de '.$currentMonth->format('Y');
+    $calendarSelectedMonth = $currentMonth->format('Y-m');
+    $calendarPrevMonth = $currentMonth->copy()->subMonthNoOverflow()->format('Y-m');
+    $calendarNextMonth = $currentMonth->copy()->addMonthNoOverflow()->format('Y-m');
 
     $calendarDays = collect(range(1, $currentMonth->daysInMonth))->map(function (int $day) use ($currentMonth) {
         $dayDate = $currentMonth->copy()->day($day);
@@ -257,7 +271,10 @@ Route::get('/dashboard', function () {
         'expenseCategoryTotals',
         'calendarDays',
         'calendarStartOffset',
-        'calendarMonthLabel'
+        'calendarMonthLabel',
+        'calendarSelectedMonth',
+        'calendarPrevMonth',
+        'calendarNextMonth'
     ));
 })->middleware(['auth', 'verified'])->name('dashboard');
 

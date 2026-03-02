@@ -46,8 +46,24 @@
 
             <section class="flux-card p-6">
                 <div class="flex flex-wrap items-end justify-between gap-3">
-                    <h2 class="font-display text-3xl font-bold text-[var(--flux-ink)]">Calendario</h2>
-                    <p class="text-sm font-semibold uppercase tracking-widest text-[var(--flux-muted)]">{{ $calendarMonthLabel }}</p>
+                    <div>
+                        <h2 class="font-display text-3xl font-bold text-[var(--flux-ink)]">Calendario</h2>
+                        <p class="mt-1 text-sm font-semibold uppercase tracking-widest text-[var(--flux-muted)]">{{ $calendarMonthLabel }}</p>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <a href="{{ route('dashboard', ['month' => $calendarPrevMonth]) }}" class="flux-secondary-btn px-3 py-1.5">
+                            &lt;
+                        </a>
+                        <form method="GET" action="{{ route('dashboard') }}">
+                            <input type="month" name="month" value="{{ $calendarSelectedMonth }}"
+                                class="rounded-xl border-[var(--flux-border)] bg-white px-3 py-1.5 text-sm shadow-sm focus:border-[#17736a] focus:ring-[#17736a]"
+                                onchange="this.form.submit()">
+                        </form>
+                        <a href="{{ route('dashboard', ['month' => $calendarNextMonth]) }}" class="flux-secondary-btn px-3 py-1.5">
+                            &gt;
+                        </a>
+                    </div>
                 </div>
 
                 <div class="mt-6 grid grid-cols-7 gap-2">
