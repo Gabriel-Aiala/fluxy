@@ -7,7 +7,6 @@ use App\Http\Controllers\ControlController;
 use App\Http\Controllers\CounterpartiesController;
 use App\Http\Controllers\DailyFlowController;
 use App\Http\Controllers\PaymentMethodController;
-use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuickCreateController;
 use App\Http\Controllers\RegisterController;
 use App\Http\Controllers\TransactionController;
@@ -74,13 +73,18 @@ Route::get('/dashboard', function (Request $request) {
 
         return [
             'day' => $day,
+            'iso_date' => $dayDate->toDateString(),
             'is_today' => $dayDate->isSameDay(now()),
+            'has_transactions' => false,
+            'has_done' => false,
+            'has_planned' => false,
             'has_receivable' => false,
             'has_payable' => false,
             'receivable_total' => 0.0,
             'payable_total' => 0.0,
         ];
     });
+    $calendarDayDetails = [];
 
     $periods = collect([
         now()->subMonthNoOverflow(),
@@ -192,51 +196,137 @@ Route::get('/dashboard', function (Request $request) {
             $monthStart = $currentMonth->copy()->startOfMonth()->toDateString();
             $monthEnd = $currentMonth->copy()->endOfMonth()->toDateString();
 
-            $pendingTransactions = (clone $transactionScope)
-                ->where('payment_status', 'payable')
-                ->whereBetween('expected_payment_date', [$monthStart, $monthEnd])
-                ->get(['type', 'amount', 'expected_payment_date']);
+            $calendarTransactions = (clone $transactionScope)
+                ->with([
+                    'category:id,name',
+                    'counterparty:id,name',
+                    'bankAccount:id,name',
+                    'paymentMethod:id,name',
+                ])
+                ->where(function ($query) use ($monthStart, $monthEnd) {
+                    $query
+                        ->where(function ($paidQuery) use ($monthStart, $monthEnd) {
+                            $paidQuery
+                                ->where('payment_status', 'paid')
+                                ->whereBetween('payment_date', [$monthStart, $monthEnd]);
+                        })
+                        ->orWhere(function ($payableQuery) use ($monthStart, $monthEnd) {
+                            $payableQuery
+                                ->where('payment_status', 'payable')
+                                ->whereBetween('expected_payment_date', [$monthStart, $monthEnd]);
+                        });
+                })
+                ->get([
+                    'id',
+                    'type',
+                    'payment_status',
+                    'amount',
+                    'installment_number',
+                    'payment_date',
+                    'expected_payment_date',
+                    'category_id',
+                    'counterparty_id',
+                    'bank_account_id',
+                    'payment_method_id',
+                ]);
 
-            $calendarByDay = $pendingTransactions->reduce(function (array $carry, Transaction $transaction) {
-                if (! $transaction->expected_payment_date) {
+            $calendarDayDetails = $calendarTransactions->reduce(function (array $carry, Transaction $transaction) {
+                $isDone = $transaction->payment_status === 'paid';
+                $isIncome = $transaction->type === 'income';
+                $referenceDate = $isDone
+                    ? $transaction->payment_date?->toDateString()
+                    : $transaction->expected_payment_date?->toDateString();
+
+                if (! $referenceDate) {
                     return $carry;
                 }
 
-                try {
-                    $day = Carbon::parse($transaction->expected_payment_date)->day;
-                } catch (\Throwable $exception) {
-                    return $carry;
-                }
-
-                if (! isset($carry[$day])) {
-                    $carry[$day] = [
-                        'receivable_total' => 0.0,
-                        'payable_total' => 0.0,
+                if (! isset($carry[$referenceDate])) {
+                    $carry[$referenceDate] = [
+                        'has_done' => false,
+                        'has_planned' => false,
+                        'done_income_total' => 0.0,
+                        'done_expense_total' => 0.0,
+                        'planned_income_total' => 0.0,
+                        'planned_expense_total' => 0.0,
+                        'transactions' => [],
                     ];
                 }
 
-                if ($transaction->type === 'income') {
-                    $carry[$day]['receivable_total'] += (float) $transaction->amount;
+                $amount = (float) $transaction->amount;
+                if ($isDone) {
+                    $carry[$referenceDate]['has_done'] = true;
+                    if ($isIncome) {
+                        $carry[$referenceDate]['done_income_total'] += $amount;
+                    } else {
+                        $carry[$referenceDate]['done_expense_total'] += $amount;
+                    }
+                } else {
+                    $carry[$referenceDate]['has_planned'] = true;
+                    if ($isIncome) {
+                        $carry[$referenceDate]['planned_income_total'] += $amount;
+                    } else {
+                        $carry[$referenceDate]['planned_expense_total'] += $amount;
+                    }
                 }
 
-                if ($transaction->type === 'expense') {
-                    $carry[$day]['payable_total'] += (float) $transaction->amount;
-                }
+                $statusLabel = match (true) {
+                    $isDone && $isIncome => 'Recebido',
+                    $isDone && ! $isIncome => 'Pago',
+                    ! $isDone && $isIncome => 'A receber',
+                    default => 'A pagar',
+                };
+
+                $carry[$referenceDate]['transactions'][] = [
+                    'id' => (int) $transaction->id,
+                    'type' => $transaction->type,
+                    'payment_status' => $transaction->payment_status,
+                    'amount' => round($amount, 2),
+                    'installment_number' => (int) $transaction->installment_number,
+                    'reference_date' => $referenceDate,
+                    'status_label_ptbr' => $statusLabel,
+                    'type_label_ptbr' => $isIncome ? 'Receita' : 'Despesa',
+                    'category_name' => $transaction->category->name ?? '-',
+                    'counterparty_name' => $transaction->counterparty->name ?? '-',
+                    'bank_account_name' => $transaction->bankAccount->name ?? '-',
+                    'payment_method_name' => $transaction->paymentMethod->name ?? '-',
+                    'edit_url' => route('transactions.edit', $transaction->id),
+                ];
 
                 return $carry;
             }, []);
 
-            $calendarDays = $calendarDays->map(function (array $dayData) use ($calendarByDay) {
-                $dayTotals = $calendarByDay[$dayData['day']] ?? null;
-                if (! $dayTotals) {
+            $calendarDayDetails = collect($calendarDayDetails)
+                ->map(function (array $dayDetails): array {
+                    usort($dayDetails['transactions'], function (array $first, array $second): int {
+                        $firstPriority = $first['payment_status'] === 'paid' ? 0 : 1;
+                        $secondPriority = $second['payment_status'] === 'paid' ? 0 : 1;
+
+                        if ($firstPriority === $secondPriority) {
+                            return $first['id'] <=> $second['id'];
+                        }
+
+                        return $firstPriority <=> $secondPriority;
+                    });
+
+                    return $dayDetails;
+                })
+                ->all();
+
+            $calendarDays = $calendarDays->map(function (array $dayData) use ($calendarDayDetails) {
+                $dayDetails = $calendarDayDetails[$dayData['iso_date']] ?? null;
+                if (! $dayDetails) {
                     return $dayData;
                 }
 
-                $receivableTotal = (float) ($dayTotals['receivable_total'] ?? 0.0);
-                $payableTotal = (float) ($dayTotals['payable_total'] ?? 0.0);
+                $receivableTotal = (float) ($dayDetails['planned_income_total'] ?? 0.0);
+                $payableTotal = (float) ($dayDetails['planned_expense_total'] ?? 0.0);
 
                 return [
                     ...$dayData,
+                    'has_transactions' => true,
+                    'has_done' => (bool) ($dayDetails['has_done'] ?? false),
+                    'has_planned' => (bool) ($dayDetails['has_planned'] ?? false),
                     'has_receivable' => $receivableTotal > 0,
                     'has_payable' => $payableTotal > 0,
                     'receivable_total' => $receivableTotal,
@@ -261,6 +351,7 @@ Route::get('/dashboard', function (Request $request) {
             });
             $incomeCategoryTotals = collect();
             $expenseCategoryTotals = collect();
+            $calendarDayDetails = [];
         }
     }
 
@@ -270,6 +361,7 @@ Route::get('/dashboard', function (Request $request) {
         'incomeCategoryTotals',
         'expenseCategoryTotals',
         'calendarDays',
+        'calendarDayDetails',
         'calendarStartOffset',
         'calendarMonthLabel',
         'calendarSelectedMonth',
@@ -280,7 +372,6 @@ Route::get('/dashboard', function (Request $request) {
 
 Route::middleware('auth')->group(function () {
     Route::prefix('quick-create')->name('quick-create.')->group(function () {
-        Route::post('/transaction-groups', [QuickCreateController::class, 'transactionGroup'])->name('transaction-groups');
         Route::post('/bank-accounts', [QuickCreateController::class, 'bankAccount'])->name('bank-accounts');
         Route::post('/payment-methods', [QuickCreateController::class, 'paymentMethod'])->name('payment-methods');
         Route::post('/counterparties', [QuickCreateController::class, 'counterparty'])->name('counterparties');
@@ -296,11 +387,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('payment-methods', PaymentMethodController::class);
     Route::resource('categories', CategoryController::class);
     Route::resource('counterparties', CounterpartiesController::class);
-    Route::resource('transaction-groups', TransactionGroupController::class);
+    Route::resource('transaction-groups', TransactionGroupController::class)->only(['index', 'show']);
     Route::resource('transactions', TransactionController::class);
-    Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
-    Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
 require __DIR__.'/auth.php';

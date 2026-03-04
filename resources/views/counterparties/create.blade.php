@@ -47,8 +47,8 @@
                                 class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                                 required>
                                 <option value="">Selecione...</option>
-                                <option value="client" @selected(old('type') === 'client')>client</option>
-                                <option value="supplier" @selected(old('type') === 'supplier')>supplier</option>
+                                <option value="client" @selected(old('type') === 'client')>Cliente</option>
+                                <option value="supplier" @selected(old('type') === 'supplier')>Fornecedor</option>
                             </select>
                             <x-input-error :messages="$errors->get('type')" class="mt-2" />
                         </div>

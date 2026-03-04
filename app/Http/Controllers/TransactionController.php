@@ -5,13 +5,13 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\Category;
 use App\Models\Counterparties;
-use App\Models\Organization;
 use App\Models\PaymentMethod;
 use App\Models\Transaction;
 use App\Models\TransactionGroup;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class TransactionController extends Controller
@@ -55,11 +55,11 @@ class TransactionController extends Controller
         }
 
         if ($parsedDateFrom) {
-            $baseQuery->whereDate('payment_date', '>=', $parsedDateFrom->toDateString());
+            $this->applyTransactionDateFilter($baseQuery, '>=', $parsedDateFrom);
         }
 
         if ($parsedDateTo) {
-            $baseQuery->whereDate('payment_date', '<=', $parsedDateTo->toDateString());
+            $this->applyTransactionDateFilter($baseQuery, '<=', $parsedDateTo);
         }
 
         $summaryQuery = clone $baseQuery;
@@ -70,7 +70,7 @@ class TransactionController extends Controller
         }
 
         $transactions = $transactionsQuery
-            ->orderByDesc('payment_date')
+            ->orderByRaw('COALESCE(payment_date, expected_payment_date) DESC')
             ->orderByDesc('id')
             ->paginate(10)
             ->withQueryString();
@@ -177,12 +177,12 @@ class TransactionController extends Controller
                 $query->where('payment_status', $statusValue);
             })
             ->when($paymentDateFrom, function ($query, $fromDate) {
-                $query->whereDate('payment_date', '>=', $fromDate->toDateString());
+                $this->applyTransactionDateFilter($query, '>=', $fromDate);
             })
             ->when($paymentDateTo, function ($query, $toDate) {
-                $query->whereDate('payment_date', '<=', $toDate->toDateString());
+                $this->applyTransactionDateFilter($query, '<=', $toDate);
             })
-            ->orderByDesc('payment_date')
+            ->orderByRaw('COALESCE(payment_date, expected_payment_date) DESC')
             ->orderByDesc('id')
             ->paginate(12)
             ->withQueryString();
@@ -227,11 +227,6 @@ class TransactionController extends Controller
             $defaultType = null;
         }
 
-        $transactionGroups = TransactionGroup::query()
-            ->where('organization_id', $organizationId)
-            ->with('organization')
-            ->orderByDesc('id')
-            ->get();
         $bankAccounts = BankAccount::query()
             ->where('organization_id', $organizationId)
             ->with('organization')
@@ -250,7 +245,6 @@ class TransactionController extends Controller
             ->get();
 
         return view('transactions.create', compact(
-            'transactionGroups',
             'bankAccounts',
             'paymentMethods',
             'counterparties',
@@ -267,11 +261,7 @@ class TransactionController extends Controller
         $organizationId = $this->currentOrganizationId();
 
         $validated = $request->validate([
-            'transaction_group_id' => [
-                'required',
-                'integer',
-                Rule::exists('transaction_group', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
-            ],
+            'transaction_group_id' => ['prohibited'],
             'bank_account_id' => [
                 'required',
                 'integer',
@@ -327,16 +317,71 @@ class TransactionController extends Controller
             ],
             'installment_number' => ['required', 'integer', 'min:1'],
             'expected_payment_date' => ['required', 'date'],
-            'payment_date' => ['required', 'date'],
+            'payment_date' => [
+                Rule::requiredIf(fn () => $request->string('payment_status')->toString() === 'paid'),
+                'nullable',
+                'date',
+            ],
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_status' => ['required', 'in:paid,payable'],
             'expense_type' => ['required', 'in:professional,personal'],
             'type' => ['required', 'in:income,expense'],
         ]);
 
-        $validated['organization_id'] = $organizationId;
+        if ($validated['payment_status'] === 'payable') {
+            $validated['payment_date'] = null;
+        }
 
-        Transaction::create($validated);
+        $validated['organization_id'] = $organizationId;
+        $installments = (int) $validated['installment_number'];
+        $type = $validated['type'];
+
+        DB::transaction(function () use ($validated, $organizationId, $installments, $type): void {
+            $transactionGroup = TransactionGroup::create([
+                'organization_id' => $organizationId,
+                'type' => $type,
+                'description' => null,
+                'occurred_on' => $validated['expected_payment_date'],
+                'customer_installments' => $installments,
+                'flow_installments' => $installments,
+                'anticipation' => false,
+            ]);
+
+            $expectedPaymentDate = Carbon::parse($validated['expected_payment_date'])->startOfDay();
+            $paymentDate = $validated['payment_date']
+                ? Carbon::parse($validated['payment_date'])->startOfDay()
+                : null;
+            $installmentAmounts = $this->splitAmountAcrossInstallments((float) $validated['amount'], $installments);
+
+            foreach (range(1, $installments) as $installmentIndex) {
+                $installmentStatus = $this->resolveInstallmentPaymentStatus($validated['payment_status'], $installmentIndex);
+                $installmentPaymentDate = $installmentStatus === 'paid' && $paymentDate
+                    ? $paymentDate
+                        ->copy()
+                        ->addMonthsNoOverflow($installmentIndex - 1)
+                        ->toDateString()
+                    : null;
+
+                Transaction::create([
+                    'organization_id' => $organizationId,
+                    'transaction_group_id' => $transactionGroup->id,
+                    'bank_account_id' => $validated['bank_account_id'],
+                    'payment_method_id' => $validated['payment_method_id'],
+                    'counterparty_id' => $validated['counterparty_id'],
+                    'category_id' => $validated['category_id'],
+                    'installment_number' => $installmentIndex,
+                    'expected_payment_date' => $expectedPaymentDate
+                        ->copy()
+                        ->addMonthsNoOverflow($installmentIndex - 1)
+                        ->toDateString(),
+                    'payment_date' => $installmentPaymentDate,
+                    'amount' => $installmentAmounts[$installmentIndex - 1],
+                    'payment_status' => $installmentStatus,
+                    'expense_type' => $validated['expense_type'],
+                    'type' => $type,
+                ]);
+            }
+        });
 
         return redirect()
             ->route('transactions.index', ['type' => $validated['type']])
@@ -374,15 +419,6 @@ class TransactionController extends Controller
         $transaction = Transaction::query()
             ->where('organization_id', $organizationId)
             ->findOrFail($id);
-        $organizations = Organization::query()
-            ->whereKey($organizationId)
-            ->orderBy('name')
-            ->get();
-        $transactionGroups = TransactionGroup::query()
-            ->where('organization_id', $organizationId)
-            ->with('organization')
-            ->orderByDesc('id')
-            ->get();
         $bankAccounts = BankAccount::query()
             ->where('organization_id', $organizationId)
             ->with('organization')
@@ -402,8 +438,6 @@ class TransactionController extends Controller
 
         return view('transactions.edit', compact(
             'transaction',
-            'organizations',
-            'transactionGroups',
             'bankAccounts',
             'paymentMethods',
             'counterparties',
@@ -421,13 +455,10 @@ class TransactionController extends Controller
         $transaction = Transaction::query()
             ->where('organization_id', $organizationId)
             ->findOrFail($id);
+        $transactionType = $transaction->type;
 
         $validated = $request->validate([
-            'transaction_group_id' => [
-                'required',
-                'integer',
-                Rule::exists('transaction_group', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
-            ],
+            'transaction_group_id' => ['prohibited'],
             'bank_account_id' => [
                 'required',
                 'integer',
@@ -438,8 +469,7 @@ class TransactionController extends Controller
                 'required',
                 'integer',
                 Rule::exists('counterparties', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
-                function (string $attribute, mixed $value, \Closure $fail) use ($request, $organizationId): void {
-                    $transactionType = $request->string('type')->toString();
+                function (string $attribute, mixed $value, \Closure $fail) use ($organizationId, $transactionType): void {
                     $expectedCounterpartyType = $transactionType === 'income'
                         ? 'client'
                         : ($transactionType === 'expense' ? 'supplier' : null);
@@ -463,9 +493,7 @@ class TransactionController extends Controller
                 'required',
                 'integer',
                 Rule::exists('category', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
-                function (string $attribute, mixed $value, \Closure $fail) use ($request, $organizationId): void {
-                    $transactionType = $request->string('type')->toString();
-
+                function (string $attribute, mixed $value, \Closure $fail) use ($organizationId, $transactionType): void {
                     if (! in_array($transactionType, ['income', 'expense'], true)) {
                         return;
                     }
@@ -481,22 +509,73 @@ class TransactionController extends Controller
                     }
                 },
             ],
-            'installment_number' => ['required', 'integer', 'min:1'],
+            'installment_number' => ['prohibited'],
             'expected_payment_date' => ['required', 'date'],
-            'payment_date' => ['required', 'date'],
+            'payment_date' => [
+                Rule::requiredIf(fn () => $request->string('payment_status')->toString() === 'paid'),
+                'nullable',
+                'date',
+            ],
             'amount' => ['required', 'numeric', 'min:0'],
             'payment_status' => ['required', 'in:paid,payable'],
             'expense_type' => ['required', 'in:professional,personal'],
-            'type' => ['required', 'in:income,expense'],
+            'type' => ['prohibited'],
         ]);
+
+        if ($validated['payment_status'] === 'payable') {
+            $validated['payment_date'] = null;
+        }
 
         $validated['organization_id'] = $organizationId;
 
         $transaction->update($validated);
 
         return redirect()
-            ->route('transactions.index', ['type' => $validated['type']])
+            ->route('transactions.index', ['type' => $transactionType])
             ->with('success', 'Transacao atualizada com sucesso.');
+    }
+
+    private function splitAmountAcrossInstallments(float $amount, int $installments): array
+    {
+        $totalCents = (int) round($amount * 100);
+        $baseInstallment = intdiv($totalCents, $installments);
+        $remainder = $totalCents - ($baseInstallment * $installments);
+
+        $installmentsInCents = array_fill(0, $installments, $baseInstallment);
+        $installmentsInCents[$installments - 1] += $remainder;
+
+        return array_map(
+            fn (int $valueInCents): string => number_format($valueInCents / 100, 2, '.', ''),
+            $installmentsInCents
+        );
+    }
+
+    private function resolveInstallmentPaymentStatus(string $requestedStatus, int $installmentNumber): string
+    {
+        if ($requestedStatus === 'paid' && $installmentNumber > 1) {
+            return 'payable';
+        }
+
+        return $requestedStatus;
+    }
+
+    private function applyTransactionDateFilter($query, string $operator, Carbon $date): void
+    {
+        $formattedDate = $date->toDateString();
+
+        $query->where(function ($dateQuery) use ($operator, $formattedDate) {
+            $dateQuery
+                ->where(function ($paidQuery) use ($operator, $formattedDate) {
+                    $paidQuery
+                        ->where('payment_status', 'paid')
+                        ->whereDate('payment_date', $operator, $formattedDate);
+                })
+                ->orWhere(function ($pendingQuery) use ($operator, $formattedDate) {
+                    $pendingQuery
+                        ->where('payment_status', 'payable')
+                        ->whereDate('expected_payment_date', $operator, $formattedDate);
+                });
+        });
     }
 
     /**

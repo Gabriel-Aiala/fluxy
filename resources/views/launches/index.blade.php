@@ -88,7 +88,7 @@
                                 @php($isPaid = $transaction->payment_status === 'paid')
                                 <tr>
                                     <td class="font-semibold">
-                                        {{ optional($transaction->payment_date)->format('d/m/Y') }}
+                                        {{ optional($transaction->payment_status === 'payable' ? $transaction->expected_payment_date : $transaction->payment_date)->format('d/m/Y') }}
                                     </td>
                                     <td>
                                         {{ $transaction->transactionGroup->description ?? '-' }}

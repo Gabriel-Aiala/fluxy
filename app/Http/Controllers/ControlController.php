@@ -81,8 +81,8 @@ class ControlController extends Controller
                 $toReceive = (float) Transaction::query()
                     ->where('type', 'income')
                     ->where('payment_status', 'payable')
-                    ->whereYear('payment_date', $card['year'])
-                    ->whereMonth('payment_date', $card['month'])
+                    ->whereYear('expected_payment_date', $card['year'])
+                    ->whereMonth('expected_payment_date', $card['month'])
                     ->sum('amount');
 
                 $paid = (float) Transaction::query()
@@ -95,8 +95,8 @@ class ControlController extends Controller
                 $toPay = (float) Transaction::query()
                     ->where('type', 'expense')
                     ->where('payment_status', 'payable')
-                    ->whereYear('payment_date', $card['year'])
-                    ->whereMonth('payment_date', $card['month'])
+                    ->whereYear('expected_payment_date', $card['year'])
+                    ->whereMonth('expected_payment_date', $card['month'])
                     ->sum('amount');
 
                 $card['received'] = $received;

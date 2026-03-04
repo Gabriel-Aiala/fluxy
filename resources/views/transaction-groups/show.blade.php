@@ -57,10 +57,6 @@
                             class="inline-flex items-center px-4 py-2 bg-gray-200 border border-transparent rounded-md font-semibold text-xs uppercase tracking-widest text-gray-700 hover:bg-gray-300">
                             Voltar
                         </a>
-                        <a href="{{ route('transaction-groups.edit', $transactionGroup->id) }}"
-                            class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs uppercase tracking-widest text-white hover:bg-indigo-500">
-                            Editar
-                        </a>
                     </div>
                 </div>
             </div>

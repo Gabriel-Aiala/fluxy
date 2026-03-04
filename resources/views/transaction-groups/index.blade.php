@@ -1,15 +1,8 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-                {{ __('Grupos de Transacao') }}
-            </h2>
-
-            <a href="{{ route('transaction-groups.create') }}"
-                class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-500">
-                Novo Grupo
-            </a>
-        </div>
+        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
+            {{ __('Grupos de Transacao') }}
+        </h2>
     </x-slot>
 
     <div class="py-8">
@@ -33,7 +26,7 @@
                                     <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Parcelas</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Antecipacao</th>
                                     <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Organizacao</th>
-                                    <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Acoes</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium uppercase tracking-wider">Detalhes</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-200 dark:divide-gray-700">
@@ -50,18 +43,8 @@
                                         <td class="px-4 py-3">{{ $transactionGroup->anticipation ? 'sim' : 'nao' }}</td>
                                         <td class="px-4 py-3">{{ $transactionGroup->organization->name ?? '-' }}</td>
                                         <td class="px-4 py-3">
-                                            <div class="flex items-center gap-3">
-                                                <a href="{{ route('transaction-groups.show', $transactionGroup->id) }}"
-                                                    class="text-blue-600 hover:text-blue-500">Ver</a>
-                                                <a href="{{ route('transaction-groups.edit', $transactionGroup->id) }}"
-                                                    class="text-indigo-600 hover:text-indigo-500">Editar</a>
-                                                <form action="{{ route('transaction-groups.destroy', $transactionGroup->id) }}" method="POST"
-                                                    onsubmit="return confirm('Deseja remover este grupo de transacao?');">
-                                                    @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" class="text-red-600 hover:text-red-500">Excluir</button>
-                                                </form>
-                                            </div>
+                                            <a href="{{ route('transaction-groups.show', $transactionGroup->id) }}"
+                                                class="text-blue-600 hover:text-blue-500">Ver</a>
                                         </td>
                                     </tr>
                                 @empty

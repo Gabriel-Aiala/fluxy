@@ -38,7 +38,7 @@
                                     <tr>
                                         <td class="px-4 py-3">{{ $counterparty->id }}</td>
                                         <td class="px-4 py-3">{{ $counterparty->name }}</td>
-                                        <td class="px-4 py-3">{{ $counterparty->type }}</td>
+                                        <td class="px-4 py-3">{{ $counterparty->type_label }}</td>
                                         <td class="px-4 py-3">{{ $counterparty->organization->name ?? '-' }}</td>
                                         <td class="px-4 py-3">
                                             <div class="flex items-center gap-3">

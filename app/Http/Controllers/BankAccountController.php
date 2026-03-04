@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
-use App\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 
 class BankAccountController extends Controller
 {
@@ -13,7 +13,10 @@ class BankAccountController extends Controller
      */
     public function index()
     {
+        $organizationId = $this->currentOrganizationId();
+
         $bankAccounts = BankAccount::with('organization')
+            ->where('organization_id', $organizationId)
             ->orderByDesc('id')
             ->paginate(10);
 
@@ -25,9 +28,10 @@ class BankAccountController extends Controller
      */
     public function create()
     {
-        $organizations = Organization::orderBy('name')->get();
+        $this->currentOrganizationId();
+        $organizationName = Auth::user()?->organization?->name ?? '-';
 
-        return view('bank-accounts.create', compact('organizations'));
+        return view('bank-accounts.create', compact('organizationName'));
     }
 
     /**
@@ -35,10 +39,14 @@ class BankAccountController extends Controller
      */
     public function store(Request $request)
     {
+        $organizationId = $this->currentOrganizationId();
+
         $validated = $request->validate([
-            'organization_id' => ['required', 'integer', 'exists:organization,id'],
+            'organization_id' => ['prohibited'],
             'name' => ['required', 'string', 'max:255'],
         ]);
+
+        $validated['organization_id'] = $organizationId;
 
         BankAccount::create($validated);
 
@@ -52,7 +60,11 @@ class BankAccountController extends Controller
      */
     public function show(string $id)
     {
-        $bankAccount = BankAccount::with('organization')->findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $bankAccount = BankAccount::with('organization')
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         return view('bank-accounts.show', compact('bankAccount'));
     }
@@ -62,10 +74,14 @@ class BankAccountController extends Controller
      */
     public function edit(string $id)
     {
-        $bankAccount = BankAccount::findOrFail($id);
-        $organizations = Organization::orderBy('name')->get();
+        $organizationId = $this->currentOrganizationId();
 
-        return view('bank-accounts.edit', compact('bankAccount', 'organizations'));
+        $bankAccount = BankAccount::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
+        $organizationName = Auth::user()?->organization?->name ?? '-';
+
+        return view('bank-accounts.edit', compact('bankAccount', 'organizationName'));
     }
 
     /**
@@ -73,12 +89,18 @@ class BankAccountController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $bankAccount = BankAccount::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $bankAccount = BankAccount::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         $validated = $request->validate([
-            'organization_id' => ['required', 'integer', 'exists:organization,id'],
+            'organization_id' => ['prohibited'],
             'name' => ['required', 'string', 'max:255'],
         ]);
+
+        $validated['organization_id'] = $organizationId;
 
         $bankAccount->update($validated);
 
@@ -92,11 +114,24 @@ class BankAccountController extends Controller
      */
     public function destroy(string $id)
     {
-        $bankAccount = BankAccount::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $bankAccount = BankAccount::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
         $bankAccount->delete();
 
         return redirect()
             ->route('bank-accounts.index')
             ->with('success', 'Conta bancaria removida com sucesso.');
+    }
+
+    private function currentOrganizationId(): int
+    {
+        $organizationId = (int) Auth::user()?->organization_id;
+
+        abort_if($organizationId <= 0, 403, 'Usuario sem organizacao vinculada.');
+
+        return $organizationId;
     }
 }

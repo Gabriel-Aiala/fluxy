@@ -1,58 +1,43 @@
 <x-app-layout>
-    <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 dark:text-gray-200 leading-tight">
-            {{ __('Nova Conta Bancaria') }}
-        </h2>
-    </x-slot>
+    @php
+        $inputClass = 'mt-1 block w-full rounded-xl border-[var(--flux-border)] bg-white/90 shadow-sm focus:border-[#17736a] focus:ring-[#17736a]';
+    @endphp
 
     <div class="py-8">
-        <div class="max-w-3xl mx-auto sm:px-6 lg:px-8">
-            <div class="bg-white dark:bg-gray-800 overflow-hidden shadow-sm sm:rounded-lg">
-                <div class="p-6 text-gray-900 dark:text-gray-100">
-                    @if ($organizations->isEmpty())
-                        <div class="mb-4 rounded-md bg-yellow-100 text-yellow-800 px-4 py-2">
-                            Nenhuma organizacao encontrada. Cadastre uma organizacao antes de criar conta bancaria.
-                        </div>
-                    @endif
+        <div class="flux-shell space-y-6">
+            <div>
+                <h1 class="font-display text-4xl font-bold text-[var(--flux-ink)]">Nova conta bancaria</h1>
+                <p class="mt-1 text-lg text-[var(--flux-muted)]">Cadastre uma conta para classificar recebimentos e pagamentos.</p>
+            </div>
 
-                    <form method="POST" action="{{ route('bank-accounts.store') }}" class="space-y-4">
-                        @csrf
+            <section class="flux-card overflow-hidden">
+                <div class="border-b border-[var(--flux-border)] bg-[#f4f6f1] px-6 py-4 text-sm text-[var(--flux-muted)]">
+                    A conta sera vinculada automaticamente a sua organizacao.
+                </div>
 
+                <form method="POST" action="{{ route('bank-accounts.store') }}" class="space-y-5 p-6">
+                    @csrf
+
+                    <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                         <div>
-                            <x-input-label for="organization_id" :value="__('Organizacao')" />
-                            <select id="organization_id" name="organization_id"
-                                class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                                required>
-                                <option value="">Selecione...</option>
-                                @foreach ($organizations as $organization)
-                                    <option value="{{ $organization->id }}"
-                                        @selected(old('organization_id') == $organization->id)>
-                                        {{ $organization->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <x-input-error :messages="$errors->get('organization_id')" class="mt-2" />
+                            <x-input-label :value="'Organizacao'" />
+                            <p class="mt-1 rounded-xl border border-[var(--flux-border)] bg-[#f8f9f5] px-3 py-2 text-sm font-medium text-[var(--flux-ink)]">
+                                {{ $organizationName }}
+                            </p>
                         </div>
-
                         <div>
-                            <x-input-label for="name" :value="__('Nome')" />
-                            <x-text-input id="name" name="name" type="text" class="mt-1 block w-full"
-                                :value="old('name')" required />
+                            <x-input-label for="name" :value="'Nome da conta'" />
+                            <x-text-input id="name" name="name" type="text" class="{{ $inputClass }}" :value="old('name')" required />
                             <x-input-error :messages="$errors->get('name')" class="mt-2" />
                         </div>
+                    </div>
 
-                        <div class="flex items-center gap-3">
-                            <a href="{{ route('bank-accounts.index') }}"
-                                class="inline-flex items-center px-4 py-2 bg-gray-200 border border-transparent rounded-md font-semibold text-xs uppercase tracking-widest text-gray-700 hover:bg-gray-300">
-                                Cancelar
-                            </a>
-                            <x-primary-button :disabled="$organizations->isEmpty()">
-                                Salvar
-                            </x-primary-button>
-                        </div>
-                    </form>
-                </div>
-            </div>
+                    <div class="flex flex-wrap items-center gap-3 pt-2">
+                        <button type="submit" class="flux-primary-btn">Salvar conta</button>
+                        <a href="{{ route('bank-accounts.index') }}" class="flux-secondary-btn">Voltar</a>
+                    </div>
+                </form>
+            </section>
         </div>
     </div>
 </x-app-layout>

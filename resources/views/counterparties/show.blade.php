@@ -21,7 +21,7 @@
 
                     <div>
                         <p class="text-sm text-gray-500">Tipo</p>
-                        <p class="font-medium">{{ $counterparty->type }}</p>
+                        <p class="font-medium">{{ $counterparty->type_label }}</p>
                     </div>
 
                     <div>

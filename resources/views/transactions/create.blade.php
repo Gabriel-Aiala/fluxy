@@ -2,6 +2,7 @@
 <x-app-layout>
     @php
         $oldType = old('type', $defaultType ?: 'expense');
+        $oldPaymentStatus = old('payment_status', 'payable');
         $inputClass = 'mt-1 block w-full rounded-xl border-[var(--flux-border)] bg-white/90 shadow-sm focus:border-[#17736a] focus:ring-[#17736a]';
         $linkClass = 'text-xs font-semibold text-[var(--flux-muted)] transition hover:text-[var(--flux-ink)]';
         $counterpartyLabel = $oldType === 'income' ? 'Cliente' : ($oldType === 'expense' ? 'Fornecedor' : 'Contraparte');
@@ -10,6 +11,14 @@
         $counterpartyModalTitle = $oldType === 'income' ? 'Novo cliente' : ($oldType === 'expense' ? 'Novo fornecedor' : 'Nova contraparte');
         $counterpartyNameLabel = $oldType === 'income' ? 'Nome do cliente' : ($oldType === 'expense' ? 'Nome do fornecedor' : 'Nome');
         $counterpartyDefaultType = $oldType === 'income' ? 'client' : 'supplier';
+        $paymentStatusLabel = $oldType === 'income' ? 'Status de recebimento' : 'Status de pagamento';
+        $payableLabel = $oldType === 'income' ? 'A receber' : 'A pagar';
+        $paidLabel = $oldType === 'income' ? 'Recebido' : 'Pago';
+        $expenseTypeLabel = $oldType === 'income'
+            ? 'Tipo de receita pessoal/profissional'
+            : 'Tipo de despesa pessoal/profissional';
+        $paymentDateLabel = $oldType === 'income' ? 'Data de recebimento' : 'Data de pagamento';
+        $showPaymentDateField = $oldPaymentStatus === 'paid';
     @endphp
 
     <div class="py-8">
@@ -38,16 +47,16 @@
                             <x-input-error :messages="$errors->get('type')" class="mt-2" />
                         </div>
                         <div>
-                            <x-input-label for="payment_status" :value="'Status de pagamento'" />
+                            <x-input-label id="payment-status-label" for="payment_status" :value="$paymentStatusLabel" />
                             <select id="payment_status" name="payment_status" class="{{ $inputClass }}" required>
                                 <option value="">Selecione</option>
-                                <option value="payable" @selected(old('payment_status') === 'payable')>A pagar</option>
-                                <option value="paid" @selected(old('payment_status') === 'paid')>Pago</option>
+                                <option id="payment-status-payable-option" value="payable" @selected($oldPaymentStatus === 'payable')>{{ $payableLabel }}</option>
+                                <option id="payment-status-paid-option" value="paid" @selected($oldPaymentStatus === 'paid')>{{ $paidLabel }}</option>
                             </select>
                             <x-input-error :messages="$errors->get('payment_status')" class="mt-2" />
                         </div>
                         <div>
-                            <x-input-label for="expense_type" :value="'Tipo pessoal/profissional'" />
+                            <x-input-label id="expense-type-label" for="expense_type" :value="$expenseTypeLabel" />
                             <select id="expense_type" name="expense_type" class="{{ $inputClass }}" required>
                                 <option value="">Selecione</option>
                                 <option value="professional" @selected(old('expense_type') === 'professional')>Profissional</option>
@@ -77,18 +86,23 @@
                             <x-input-label for="amount" :value="'Valor (total)'" />
                             <x-text-input id="amount" name="amount" type="number" step="0.01" min="0" class="{{ $inputClass }}" :value="old('amount')" required />
                             <x-input-error :messages="$errors->get('amount')" class="mt-2" />
+                            <p class="mt-1 text-xs text-[var(--flux-muted)]">O valor total sera dividido automaticamente pelas parcelas.</p>
                         </div>
                         <div>
-                            <x-input-label for="installment_number" :value="'Parcelas'" />
+                            <x-input-label for="installment_number" :value="'Quantidade de parcelas'" />
                             <x-text-input id="installment_number" name="installment_number" type="number" min="1" class="{{ $inputClass }}" :value="old('installment_number', 1)" required />
                             <x-input-error :messages="$errors->get('installment_number')" class="mt-2" />
                         </div>
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                            <x-input-label for="payment_date" :value="'Data de pagamento'" />
-                            <x-text-input id="payment_date" name="payment_date" type="date" class="{{ $inputClass }}" :value="old('payment_date')" required />
+                        <div id="payment-date-field-wrap">
+                            <x-input-label id="payment-date-label" for="payment_date" :value="$paymentDateLabel" />
+                            <input id="payment_date" name="payment_date" type="date"
+                                class="{{ $inputClass }} {{ ! $showPaymentDateField ? 'bg-gray-50 cursor-not-allowed' : '' }}"
+                                value="{{ old('payment_date') }}"
+                                @required($showPaymentDateField)
+                                @readonly(! $showPaymentDateField)>
                             <x-input-error :messages="$errors->get('payment_date')" class="mt-2" />
                         </div>
                         <div>
@@ -96,20 +110,6 @@
                             <x-text-input id="expected_payment_date" name="expected_payment_date" type="date" class="{{ $inputClass }}" :value="old('expected_payment_date')" required />
                             <x-input-error :messages="$errors->get('expected_payment_date')" class="mt-2" />
                         </div>
-                    </div>
-
-                    <div>
-                        <div class="flex items-center justify-between gap-2">
-                            <x-input-label for="transaction_group_id" :value="'Grupo de transacao'" />
-                            <button type="button" x-data x-on:click="$dispatch('open-modal', 'qc-transaction-group')" class="{{ $linkClass }}">+ Criar grupo</button>
-                        </div>
-                        <select id="transaction_group_id" name="transaction_group_id" class="{{ $inputClass }}" required>
-                            <option value="">Selecione</option>
-                            @foreach ($transactionGroups as $transactionGroup)
-                                <option value="{{ $transactionGroup->id }}" @selected(old('transaction_group_id') == $transactionGroup->id)>#{{ $transactionGroup->id }} - {{ $transactionGroup->type }} - {{ $transactionGroup->organization->name ?? '-' }}</option>
-                            @endforeach
-                        </select>
-                        <x-input-error :messages="$errors->get('transaction_group_id')" class="mt-2" />
                     </div>
 
                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -149,7 +149,7 @@
                         <select id="counterparty_id" name="counterparty_id" class="{{ $inputClass }}" required>
                             <option id="counterparty-placeholder-option" value="">{{ $counterpartyPlaceholder }}</option>
                             @foreach ($counterparties as $counterparty)
-                                <option data-counterparty-type="{{ $counterparty->type }}" value="{{ $counterparty->id }}" @selected(old('counterparty_id') == $counterparty->id)>{{ $counterparty->name }} ({{ $counterparty->type }}) - {{ $counterparty->organization->name ?? '-' }}</option>
+                                <option data-counterparty-type="{{ $counterparty->type }}" value="{{ $counterparty->id }}" @selected(old('counterparty_id') == $counterparty->id)>{{ $counterparty->name }} ({{ $counterparty->type_label }}) - {{ $counterparty->organization->name ?? '-' }}</option>
                             @endforeach
                         </select>
                         <x-input-error :messages="$errors->get('counterparty_id')" class="mt-2" />
@@ -163,60 +163,6 @@
             </section>
         </div>
     </div>
-    <x-modal name="qc-transaction-group" maxWidth="lg">
-        <form method="POST" action="{{ route('quick-create.transaction-groups') }}" data-quick-create data-target-select="transaction_group_id" data-modal="qc-transaction-group" class="space-y-4 p-6">
-            @csrf
-            <h3 class="font-display text-2xl font-bold text-[var(--flux-ink)]">Novo grupo de transacao</h3>
-            <div data-form-errors class="hidden rounded-xl bg-red-50 px-3 py-2 text-sm text-red-700"></div>
-
-            <div>
-                <x-input-label for="qc_transaction_group_type" :value="'Tipo'" />
-                <select id="qc_transaction_group_type" name="type" class="{{ $inputClass }}" data-sync-transaction-type="group" required>
-                    <option value="income">Receita</option>
-                    <option value="expense">Despesa</option>
-                </select>
-                <p data-error-for="type" class="mt-1 hidden text-xs text-red-600"></p>
-            </div>
-
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                    <x-input-label for="qc_transaction_group_occurred_on" :value="'Data'" />
-                    <x-text-input id="qc_transaction_group_occurred_on" name="occurred_on" type="date" class="{{ $inputClass }}" :value="now()->toDateString()" required />
-                    <p data-error-for="occurred_on" class="mt-1 hidden text-xs text-red-600"></p>
-                </div>
-                <div>
-                    <x-input-label for="qc_transaction_group_description" :value="'Descricao'" />
-                    <x-text-input id="qc_transaction_group_description" name="description" class="{{ $inputClass }}" />
-                    <p data-error-for="description" class="mt-1 hidden text-xs text-red-600"></p>
-                </div>
-            </div>
-
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div>
-                    <x-input-label for="qc_transaction_group_customer_installments" :value="'Parcelas cliente'" />
-                    <x-text-input id="qc_transaction_group_customer_installments" name="customer_installments" type="number" min="1" class="{{ $inputClass }}" :value="1" required />
-                    <p data-error-for="customer_installments" class="mt-1 hidden text-xs text-red-600"></p>
-                </div>
-                <div>
-                    <x-input-label for="qc_transaction_group_flow_installments" :value="'Parcelas fluxo'" />
-                    <x-text-input id="qc_transaction_group_flow_installments" name="flow_installments" type="number" min="1" class="{{ $inputClass }}" :value="1" required />
-                    <p data-error-for="flow_installments" class="mt-1 hidden text-xs text-red-600"></p>
-                </div>
-            </div>
-
-            <label class="inline-flex items-center gap-2 text-sm text-[var(--flux-muted)]">
-                <input type="checkbox" name="anticipation" value="1" class="rounded border-[var(--flux-border)] text-[var(--flux-dark)] shadow-sm focus:ring-[#17736a]">
-                Com antecipacao
-            </label>
-            <p data-error-for="anticipation" class="-mt-2 hidden text-xs text-red-600"></p>
-
-            <div class="flex items-center gap-2 pt-2">
-                <button type="submit" class="flux-primary-btn">Salvar</button>
-                <button type="button" x-data x-on:click="$dispatch('close-modal', 'qc-transaction-group')" class="flux-secondary-btn">Cancelar</button>
-            </div>
-        </form>
-    </x-modal>
-
     <x-modal name="qc-bank-account" maxWidth="md">
         <form method="POST" action="{{ route('quick-create.bank-accounts') }}" data-quick-create data-target-select="bank_account_id" data-modal="qc-bank-account" class="space-y-4 p-6">
             @csrf
@@ -285,7 +231,7 @@
                 <x-text-input id="qc_category_name" name="name" class="{{ $inputClass }}" required />
                 <p data-error-for="name" class="mt-1 hidden text-xs text-red-600"></p>
             </div>
-            <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div id="qc_category_fields_grid" class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div>
                     <x-input-label for="qc_category_type" :value="'Tipo'" />
                     <select id="qc_category_type" name="type" class="{{ $inputClass }}" data-sync-transaction-type="category" required>
@@ -314,6 +260,13 @@
         document.addEventListener('DOMContentLoaded', () => {
             const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
             const transactionTypeSelect = document.getElementById('type');
+            const paymentStatusSelect = document.getElementById('payment_status');
+            const paymentStatusLabel = document.getElementById('payment-status-label');
+            const paymentStatusPayableOption = document.getElementById('payment-status-payable-option');
+            const paymentStatusPaidOption = document.getElementById('payment-status-paid-option');
+            const expenseTypeLabel = document.getElementById('expense-type-label');
+            const paymentDateLabel = document.getElementById('payment-date-label');
+            const paymentDateInput = document.getElementById('payment_date');
             const categorySelect = document.getElementById('category_id');
             const categoryPlaceholderOption = document.getElementById('category-placeholder-option');
             const counterpartyFieldLabel = document.getElementById('counterparty-field-label');
@@ -324,6 +277,7 @@
             const counterpartyNameLabel = document.getElementById('counterparty-name-label');
             const counterpartyTypeSelect = document.getElementById('qc_counterparty_type');
             const quickCategoryTypeSelect = document.getElementById('qc_category_type');
+            const quickCategoryFieldsGrid = document.getElementById('qc_category_fields_grid');
             const quickCategoryCostTypeWrap = document.getElementById('qc_category_cost_type_wrap');
             const quickCategoryCostTypeSelect = document.getElementById('qc_category_cost_type');
 
@@ -374,9 +328,36 @@
                     if (element.dataset.syncedByUser === '1') return;
                     if (transactionType) element.value = transactionType;
                 });
+                syncPaymentStatusContext();
                 syncCategoryContext();
                 syncCounterpartyContext();
                 syncQuickCategoryCostTypeVisibility();
+            };
+
+            const syncPaymentStatusContext = () => {
+                const transactionType = transactionTypeSelect?.value;
+                const isIncome = transactionType === 'income';
+                const payableLabel = isIncome ? 'A receber' : 'A pagar';
+                const paidLabel = isIncome ? 'Recebido' : 'Pago';
+                const statusLabel = isIncome ? 'Status de recebimento' : 'Status de pagamento';
+                const typeLabel = isIncome
+                    ? 'Tipo de receita pessoal/profissional'
+                    : 'Tipo de despesa pessoal/profissional';
+                const dateLabel = isIncome ? 'Data de recebimento' : 'Data de pagamento';
+                const isPayable = paymentStatusSelect?.value === 'payable';
+
+                if (paymentStatusLabel) paymentStatusLabel.textContent = statusLabel;
+                if (paymentStatusPayableOption) paymentStatusPayableOption.textContent = payableLabel;
+                if (paymentStatusPaidOption) paymentStatusPaidOption.textContent = paidLabel;
+                if (expenseTypeLabel) expenseTypeLabel.textContent = typeLabel;
+                if (paymentDateLabel) paymentDateLabel.textContent = dateLabel;
+
+                if (paymentDateInput) {
+                    paymentDateInput.readOnly = isPayable;
+                    paymentDateInput.required = !isPayable;
+                    paymentDateInput.classList.toggle('bg-gray-50', isPayable);
+                    paymentDateInput.classList.toggle('cursor-not-allowed', isPayable);
+                }
             };
 
             const syncCategoryContext = () => {
@@ -460,6 +441,12 @@
 
                 const isExpense = quickCategoryTypeSelect.value === 'expense';
                 quickCategoryCostTypeWrap.classList.toggle('hidden', !isExpense);
+
+                if (quickCategoryFieldsGrid) {
+                    quickCategoryFieldsGrid.classList.toggle('sm:grid-cols-2', isExpense);
+                    quickCategoryFieldsGrid.classList.toggle('sm:grid-cols-1', !isExpense);
+                }
+
                 quickCategoryCostTypeSelect.required = isExpense;
                 quickCategoryCostTypeSelect.disabled = !isExpense;
 
@@ -479,6 +466,11 @@
             if (transactionTypeSelect) {
                 transactionTypeSelect.addEventListener('change', syncTypeDefaults);
                 syncTypeDefaults();
+            }
+
+            if (paymentStatusSelect) {
+                paymentStatusSelect.addEventListener('change', syncPaymentStatusContext);
+                syncPaymentStatusContext();
             }
 
             if (quickCategoryTypeSelect) {

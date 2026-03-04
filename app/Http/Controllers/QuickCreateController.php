@@ -6,7 +6,6 @@ use App\Models\BankAccount;
 use App\Models\Category;
 use App\Models\Counterparties;
 use App\Models\PaymentMethod;
-use App\Models\TransactionGroup;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -14,35 +13,6 @@ use Illuminate\Validation\Rule;
 
 class QuickCreateController extends Controller
 {
-    public function transactionGroup(Request $request): JsonResponse
-    {
-        $organizationId = $this->currentOrganizationId();
-
-        $validated = $request->validate([
-            'type' => ['required', 'in:income,expense'],
-            'description' => ['nullable', 'string', 'max:255'],
-            'occurred_on' => ['required', 'date'],
-            'customer_installments' => ['required', 'integer', 'min:1'],
-            'flow_installments' => ['required', 'integer', 'min:1'],
-            'anticipation' => ['nullable', 'boolean'],
-        ]);
-
-        $validated['anticipation'] = $request->boolean('anticipation');
-        $validated['organization_id'] = $organizationId;
-
-        $transactionGroup = TransactionGroup::create($validated);
-        $transactionGroup->loadMissing('organization');
-
-        $label = sprintf(
-            '#%d - %s - %s',
-            $transactionGroup->id,
-            $transactionGroup->type,
-            $transactionGroup->organization->name ?? '-'
-        );
-
-        return $this->created('transaction_group', $transactionGroup->id, $label);
-    }
-
     public function bankAccount(Request $request): JsonResponse
     {
         $organizationId = $this->currentOrganizationId();
@@ -93,7 +63,7 @@ class QuickCreateController extends Controller
         $label = sprintf(
             '%s (%s) - %s',
             $counterparty->name,
-            $counterparty->type,
+            $counterparty->type_label,
             $counterparty->organization->name ?? '-'
         );
 

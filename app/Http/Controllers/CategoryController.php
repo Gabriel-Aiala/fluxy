@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Category;
-use App\Models\Organization;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class CategoryController extends Controller
@@ -14,7 +14,10 @@ class CategoryController extends Controller
      */
     public function index(Request $request)
     {
+        $organizationId = $this->currentOrganizationId();
+
         $categories = Category::with('organization')
+            ->where('organization_id', $organizationId)
             ->when($request->filled('type'), function ($query) use ($request) {
                 $query->where('type', $request->string('type')->toString());
             })
@@ -31,13 +34,44 @@ class CategoryController extends Controller
     /**
      * Show the form for creating a new resource.
      */
-    public function create()
+    public function create(Request $request)
     {
-        $organizations = Organization::orderBy('name')->get();
-        $defaultType = request()->string('type')->toString();
-        $defaultCostType = request()->string('cost_type')->toString();
+        $this->currentOrganizationId();
 
-        return view('categories.create', compact('organizations', 'defaultType', 'defaultCostType'));
+        $defaultType = $request->string('type')->toString();
+        if (! in_array($defaultType, ['income', 'expense'], true)) {
+            $defaultType = null;
+        }
+
+        $defaultCostType = $request->string('cost_type')->toString();
+        if (! in_array($defaultCostType, ['fixed', 'variable'], true)) {
+            $defaultCostType = null;
+        }
+
+        if ($defaultType !== 'expense') {
+            $defaultCostType = null;
+        }
+
+        $lockedType = $defaultType;
+        $lockedCostType = null;
+
+        if ($defaultType === 'income') {
+            $lockedCostType = 'income';
+        }
+
+        if ($defaultType === 'expense' && in_array($defaultCostType, ['fixed', 'variable'], true)) {
+            $lockedCostType = $defaultCostType;
+        }
+
+        $organizationName = Auth::user()?->organization?->name ?? '-';
+
+        return view('categories.create', compact(
+            'organizationName',
+            'defaultType',
+            'defaultCostType',
+            'lockedType',
+            'lockedCostType',
+        ));
     }
 
     /**
@@ -45,8 +79,10 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
+        $organizationId = $this->currentOrganizationId();
+
         $validated = $request->validate([
-            'organization_id' => ['required', 'integer', 'exists:organization,id'],
+            'organization_id' => ['prohibited'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:income,expense'],
             'cost_type' => [
@@ -66,6 +102,8 @@ class CategoryController extends Controller
         if ($validated['type'] === 'income') {
             $validated['cost_type'] = 'income';
         }
+
+        $validated['organization_id'] = $organizationId;
 
         Category::create($validated);
 
@@ -79,7 +117,11 @@ class CategoryController extends Controller
      */
     public function show(string $id)
     {
-        $category = Category::with('organization')->findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $category = Category::with('organization')
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         return view('categories.show', compact('category'));
     }
@@ -89,10 +131,14 @@ class CategoryController extends Controller
      */
     public function edit(string $id)
     {
-        $category = Category::findOrFail($id);
-        $organizations = Organization::orderBy('name')->get();
+        $organizationId = $this->currentOrganizationId();
 
-        return view('categories.edit', compact('category', 'organizations'));
+        $category = Category::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
+        $organizationName = Auth::user()?->organization?->name ?? '-';
+
+        return view('categories.edit', compact('category', 'organizationName'));
     }
 
     /**
@@ -100,10 +146,14 @@ class CategoryController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $category = Category::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $category = Category::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         $validated = $request->validate([
-            'organization_id' => ['required', 'integer', 'exists:organization,id'],
+            'organization_id' => ['prohibited'],
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:income,expense'],
             'cost_type' => [
@@ -124,6 +174,8 @@ class CategoryController extends Controller
             $validated['cost_type'] = 'income';
         }
 
+        $validated['organization_id'] = $organizationId;
+
         $category->update($validated);
 
         return redirect()
@@ -136,11 +188,24 @@ class CategoryController extends Controller
      */
     public function destroy(string $id)
     {
-        $category = Category::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $category = Category::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
         $category->delete();
 
         return redirect()
             ->route('categories.index')
             ->with('success', 'Categoria removida com sucesso.');
+    }
+
+    private function currentOrganizationId(): int
+    {
+        $organizationId = (int) Auth::user()?->organization_id;
+
+        abort_if($organizationId <= 0, 403, 'Usuario sem organizacao vinculada.');
+
+        return $organizationId;
     }
 }

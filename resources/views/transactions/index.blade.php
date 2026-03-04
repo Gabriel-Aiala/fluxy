@@ -116,7 +116,9 @@
                         <tbody>
                             @forelse ($transactions as $transaction)
                                 <tr>
-                                    <td>{{ optional($transaction->payment_date)->format('d/m/Y') }}</td>
+                                    <td>
+                                        {{ optional($transaction->payment_status === 'payable' ? $transaction->expected_payment_date : $transaction->payment_date)->format('d/m/Y') }}
+                                    </td>
                                     <td>{{ $transaction->counterparty->name ?? '-' }}</td>
                                     <td>R$ {{ number_format((float) $transaction->amount, 2, ',', '.') }}</td>
                                     <td>{{ $transaction->bankAccount->name ?? '-' }}</td>

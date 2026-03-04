@@ -19,6 +19,10 @@ class Counterparties extends Model
         'type',
     ];
 
+    protected $appends = [
+        'type_label',
+    ];
+
     public function organization(): BelongsTo
     {
         return $this->belongsTo(Organization::class);
@@ -27,5 +31,14 @@ class Counterparties extends Model
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'counterparty_id');
+    }
+
+    public function getTypeLabelAttribute(): string
+    {
+        return match ($this->type) {
+            'client' => 'Cliente',
+            'supplier' => 'Fornecedor',
+            default => (string) $this->type,
+        };
     }
 }

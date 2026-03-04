@@ -27,7 +27,6 @@
                 || request()->routeIs('bank-accounts.*')
                 || request()->routeIs('payment-methods.*'),
         ],
-        ['label' => 'Funcionarios', 'href' => route('profile.edit'), 'active' => request()->routeIs('profile.*')],
     ];
 @endphp
 
@@ -64,10 +63,6 @@
                 </x-slot>
 
                 <x-slot name="content">
-                    <x-dropdown-link :href="route('profile.edit')">
-                        Perfil
-                    </x-dropdown-link>
-
                     <form method="POST" action="{{ route('logout') }}">
                         @csrf
                         <x-dropdown-link :href="route('logout')"
@@ -118,10 +113,6 @@
             </a>
 
             <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile.edit')">
-                    Perfil
-                </x-responsive-nav-link>
-
                 <form method="POST" action="{{ route('logout') }}">
                     @csrf
                     <x-responsive-nav-link :href="route('logout')"
