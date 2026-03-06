@@ -2,21 +2,26 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('login') }}">
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold tracking-tight text-[var(--flux-dark)]">Entrar</h1>
+        <p class="mt-1 text-sm text-[var(--flux-muted)]">Acesse sua conta para continuar no Lucre.</p>
+    </div>
+
+    <form method="POST" action="{{ route('login') }}" class="space-y-4">
         @csrf
 
         <!-- Email Address -->
         <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
+            <x-input-label for="email" :value="'E-mail'" />
+            <x-text-input id="email" class="mt-1 block w-full rounded-xl border-[var(--flux-border)] focus:border-[var(--flux-dark)] focus:ring-[var(--flux-dark)]" type="email" name="email" :value="old('email')" required autofocus autocomplete="username" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
         <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
+        <div>
+            <x-input-label for="password" :value="'Senha'" />
 
-            <x-text-input id="password" class="block mt-1 w-full"
+            <x-text-input id="password" class="mt-1 block w-full rounded-xl border-[var(--flux-border)] focus:border-[var(--flux-dark)] focus:ring-[var(--flux-dark)]"
                             type="password"
                             name="password"
                             required autocomplete="current-password" />
@@ -25,23 +30,29 @@
         </div>
 
         <!-- Remember Me -->
-        <div class="block mt-4">
+        <div class="block">
             <label for="remember_me" class="inline-flex items-center">
-                <input id="remember_me" type="checkbox" class="rounded dark:bg-gray-900 border-gray-300 dark:border-gray-700 text-indigo-600 shadow-sm focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:focus:ring-offset-gray-800" name="remember">
-                <span class="ms-2 text-sm text-gray-600 dark:text-gray-400">{{ __('Remember me') }}</span>
+                <input id="remember_me" type="checkbox" class="rounded border-[var(--flux-border)] text-[var(--flux-dark)] shadow-sm focus:ring-[var(--flux-dark)]" name="remember">
+                <span class="ms-2 text-sm text-[var(--flux-muted)]">Lembrar de mim</span>
             </label>
         </div>
 
-        <div class="flex items-center justify-end mt-4">
+        <div class="pt-2">
+            <button type="submit" class="flux-primary-btn w-full justify-center">
+                Entrar
+            </button>
+        </div>
+
+        <div class="flex flex-col gap-2 border-t border-[var(--flux-border)] pt-4 text-sm">
             @if (Route::has('password.request'))
-                <a class="underline text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-gray-800" href="{{ route('password.request') }}">
-                    {{ __('Forgot your password?') }}
+                <a class="font-medium text-[var(--flux-muted)] underline-offset-2 hover:underline hover:text-[var(--flux-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--flux-dark)] focus:ring-offset-2" href="{{ route('password.request') }}">
+                    Esqueceu sua senha?
                 </a>
             @endif
 
-            <x-primary-button class="ms-3">
-                {{ __('Log in') }}
-            </x-primary-button>
+            <a class="font-medium text-[var(--flux-muted)] underline-offset-2 hover:underline hover:text-[var(--flux-dark)] focus:outline-none focus:ring-2 focus:ring-[var(--flux-dark)] focus:ring-offset-2" href="{{ route('register') }}">
+                Nao tem conta? Cadastre-se
+            </a>
         </div>
     </form>
 </x-guest-layout>
