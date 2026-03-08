@@ -37,9 +37,21 @@ class QuickCreateController extends Controller
 
     public function paymentMethod(Request $request): JsonResponse
     {
+        $organizationId = $this->currentOrganizationId();
+
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', Rule::unique('payment_method', 'name')],
+            'organization_id' => ['prohibited'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('payment_method', 'name')->where(
+                    fn ($query) => $query->where('organization_id', $organizationId)
+                ),
+            ],
         ]);
+
+        $validated['organization_id'] = $organizationId;
 
         $paymentMethod = PaymentMethod::create($validated);
 

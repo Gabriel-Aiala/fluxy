@@ -177,6 +177,7 @@ class DashboardCalendarModalTest extends TestCase
         ]);
 
         $paymentMethod = PaymentMethod::query()->create([
+            'organization_id' => $organization->id,
             'name' => 'Metodo '.$prefix,
         ]);
 

@@ -1,0 +1,70 @@
+service: laravel
+useDotenv: true
+
+# Set your team ID if you are using Bref Cloud
+#bref:
+#    team: my-team-id
+
+provider:
+    name: aws
+    # The AWS region in which to deploy (us-east-1 is the default)
+    region: us-east-1
+    stage: ${opt:stage, 'prod'}
+    # Environment variables
+    environment:
+        APP_ENV: ${sls:stage}
+        APP_DEBUG: ${env:APP_DEBUG, 'false'}
+        APP_KEY: ${env:APP_KEY}
+        SESSION_DRIVER: ${env:SESSION_DRIVER, 'database'}
+        QUEUE_CONNECTION: ${env:QUEUE_CONNECTION, 'database'}
+        CACHE_STORE: ${env:CACHE_STORE, 'database'}
+        LARAVEL_STORAGE_PATH: /tmp/storage
+        LOG_CHANNEL: stderr
+        LOG_STACK: stderr
+        DB_CONNECTION: mysql
+        DB_HOST: ${env:DB_HOST}
+        DB_PORT: ${env:DB_PORT, '3306'}
+        DB_DATABASE: ${env:DB_DATABASE}
+        DB_USERNAME: ${env:DB_USERNAME}
+        DB_PASSWORD: ${env:DB_PASSWORD}
+
+package:
+    # Files and directories to exclude from deployment
+    patterns:
+        - '!node_modules/**'
+        - '!public/storage'
+        - '!resources/assets/**'
+        - '!resources/css/**'
+        - '!resources/images/**'
+        - '!resources/js/**'
+        - '!storage/**'
+        - '!tests/**'
+        - '!database/*.sqlite'
+        - '!.env'
+        - '!.env.*'
+        # Include Vite build output so Lambda can serve static files
+        - 'public/build/**'
+
+functions:
+    # This function runs the Laravel website/API
+    web:
+        handler: public/index.php
+        runtime: php-84-fpm
+        timeout: 28 # in seconds (API Gateway has a timeout of 29 seconds)
+        events:
+            - httpApi: '*'
+
+    # This function lets us run artisan commands in Lambda
+    artisan:
+        handler: artisan
+        runtime: php-84-console
+        timeout: 720 # in seconds
+        # Uncomment to also run the scheduler every minute
+        #events:
+        #    - schedule:
+        #          rate: rate(1 minute)
+        #          input: '"schedule:run"'
+
+plugins:
+    # We need to include the Bref plugin
+    - ./vendor/bref/bref

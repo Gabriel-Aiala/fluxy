@@ -121,6 +121,7 @@ class TransactionEditFormViewTest extends TestCase
         ]);
 
         $paymentMethod = PaymentMethod::query()->create([
+            'organization_id' => $organization->id,
             'name' => 'Metodo '.$type.' '.strtoupper($paymentStatus),
         ]);
 

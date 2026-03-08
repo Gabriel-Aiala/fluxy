@@ -232,7 +232,10 @@ class TransactionController extends Controller
             ->with('organization')
             ->orderBy('name')
             ->get();
-        $paymentMethods = PaymentMethod::orderBy('name')->get();
+        $paymentMethods = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
+            ->orderBy('name')
+            ->get();
         $counterparties = Counterparties::query()
             ->where('organization_id', $organizationId)
             ->with('organization')
@@ -267,7 +270,13 @@ class TransactionController extends Controller
                 'integer',
                 Rule::exists('bank_account', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
             ],
-            'payment_method_id' => ['required', 'integer', 'exists:payment_method,id'],
+            'payment_method_id' => [
+                'required',
+                'integer',
+                Rule::exists('payment_method', 'id')->where(
+                    fn ($query) => $query->where('organization_id', $organizationId)
+                ),
+            ],
             'counterparty_id' => [
                 'required',
                 'integer',
@@ -296,7 +305,11 @@ class TransactionController extends Controller
             'category_id' => [
                 'required',
                 'integer',
-                Rule::exists('category', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
+                Rule::exists('category', 'id')->where(
+                    fn ($query) => $query
+                        ->where('organization_id', $organizationId)
+                        ->whereNull('deleted_at')
+                ),
                 function (string $attribute, mixed $value, \Closure $fail) use ($request, $organizationId): void {
                     $transactionType = $request->string('type')->toString();
 
@@ -306,6 +319,7 @@ class TransactionController extends Controller
 
                     $isValid = Category::query()
                         ->where('organization_id', $organizationId)
+                        ->whereNull('deleted_at')
                         ->whereKey((int) $value)
                         ->where('type', $transactionType)
                         ->exists();
@@ -424,7 +438,10 @@ class TransactionController extends Controller
             ->with('organization')
             ->orderBy('name')
             ->get();
-        $paymentMethods = PaymentMethod::orderBy('name')->get();
+        $paymentMethods = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
+            ->orderBy('name')
+            ->get();
         $counterparties = Counterparties::query()
             ->where('organization_id', $organizationId)
             ->with('organization')
@@ -464,7 +481,13 @@ class TransactionController extends Controller
                 'integer',
                 Rule::exists('bank_account', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
             ],
-            'payment_method_id' => ['required', 'integer', 'exists:payment_method,id'],
+            'payment_method_id' => [
+                'required',
+                'integer',
+                Rule::exists('payment_method', 'id')->where(
+                    fn ($query) => $query->where('organization_id', $organizationId)
+                ),
+            ],
             'counterparty_id' => [
                 'required',
                 'integer',
@@ -492,7 +515,11 @@ class TransactionController extends Controller
             'category_id' => [
                 'required',
                 'integer',
-                Rule::exists('category', 'id')->where(fn ($query) => $query->where('organization_id', $organizationId)),
+                Rule::exists('category', 'id')->where(
+                    fn ($query) => $query
+                        ->where('organization_id', $organizationId)
+                        ->whereNull('deleted_at')
+                ),
                 function (string $attribute, mixed $value, \Closure $fail) use ($organizationId, $transactionType): void {
                     if (! in_array($transactionType, ['income', 'expense'], true)) {
                         return;
@@ -500,6 +527,7 @@ class TransactionController extends Controller
 
                     $isValid = Category::query()
                         ->where('organization_id', $organizationId)
+                        ->whereNull('deleted_at')
                         ->whereKey((int) $value)
                         ->where('type', $transactionType)
                         ->exists();

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\PaymentMethod;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 
 class PaymentMethodController extends Controller
@@ -13,7 +14,10 @@ class PaymentMethodController extends Controller
      */
     public function index()
     {
+        $organizationId = $this->currentOrganizationId();
+
         $paymentMethods = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
             ->orderBy('name')
             ->paginate(10);
 
@@ -25,6 +29,8 @@ class PaymentMethodController extends Controller
      */
     public function create()
     {
+        $this->currentOrganizationId();
+
         return view('payment-methods.create');
     }
 
@@ -33,9 +39,21 @@ class PaymentMethodController extends Controller
      */
     public function store(Request $request)
     {
+        $organizationId = $this->currentOrganizationId();
+
         $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:payment_method,name'],
+            'organization_id' => ['prohibited'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('payment_method', 'name')->where(
+                    fn ($query) => $query->where('organization_id', $organizationId)
+                ),
+            ],
         ]);
+
+        $validated['organization_id'] = $organizationId;
 
         PaymentMethod::create($validated);
 
@@ -49,7 +67,11 @@ class PaymentMethodController extends Controller
      */
     public function show(string $id)
     {
-        $paymentMethod = PaymentMethod::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $paymentMethod = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         return view('payment-methods.show', compact('paymentMethod'));
     }
@@ -59,7 +81,11 @@ class PaymentMethodController extends Controller
      */
     public function edit(string $id)
     {
-        $paymentMethod = PaymentMethod::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $paymentMethod = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         return view('payment-methods.edit', compact('paymentMethod'));
     }
@@ -69,16 +95,25 @@ class PaymentMethodController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $paymentMethod = PaymentMethod::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $paymentMethod = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
 
         $validated = $request->validate([
+            'organization_id' => ['prohibited'],
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                Rule::unique('payment_method', 'name')->ignore($paymentMethod->id),
+                Rule::unique('payment_method', 'name')
+                    ->where(fn ($query) => $query->where('organization_id', $organizationId))
+                    ->ignore($paymentMethod->id),
             ],
         ]);
+
+        $validated['organization_id'] = $organizationId;
 
         $paymentMethod->update($validated);
 
@@ -92,11 +127,24 @@ class PaymentMethodController extends Controller
      */
     public function destroy(string $id)
     {
-        $paymentMethod = PaymentMethod::findOrFail($id);
+        $organizationId = $this->currentOrganizationId();
+
+        $paymentMethod = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
+            ->findOrFail($id);
         $paymentMethod->delete();
 
         return redirect()
             ->route('payment-methods.index')
             ->with('success', 'Forma de pagamento removida com sucesso.');
+    }
+
+    private function currentOrganizationId(): int
+    {
+        $organizationId = (int) Auth::user()?->organization_id;
+
+        abort_if($organizationId <= 0, 403, 'Usuario sem organizacao vinculada.');
+
+        return $organizationId;
     }
 }

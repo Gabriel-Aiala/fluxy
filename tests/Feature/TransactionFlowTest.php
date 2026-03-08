@@ -147,6 +147,33 @@ class TransactionFlowTest extends TestCase
         $this->assertDatabaseCount('transaction', 0);
     }
 
+    public function test_store_rejects_payment_method_from_other_organization(): void
+    {
+        $contextA = $this->makeExpenseContext();
+        $contextB = $this->makeExpenseContext();
+
+        $response = $this
+            ->actingAs($contextA['user'])
+            ->from(route('transactions.create'))
+            ->post(route('transactions.store'), [
+                'bank_account_id' => $contextA['bankAccount']->id,
+                'payment_method_id' => $contextB['paymentMethod']->id,
+                'counterparty_id' => $contextA['counterparty']->id,
+                'category_id' => $contextA['category']->id,
+                'installment_number' => 1,
+                'expected_payment_date' => '2026-03-15',
+                'amount' => '90.00',
+                'payment_status' => 'payable',
+                'expense_type' => 'professional',
+                'type' => 'expense',
+            ]);
+
+        $response->assertRedirect(route('transactions.create'));
+        $response->assertSessionHasErrors('payment_method_id');
+        $this->assertDatabaseCount('transaction_group', 0);
+        $this->assertDatabaseCount('transaction', 0);
+    }
+
     public function test_update_rejects_changes_to_group_installment_and_type(): void
     {
         $context = $this->makeExpenseContext();
@@ -270,6 +297,91 @@ class TransactionFlowTest extends TestCase
         $this->assertNull($transaction->payment_date);
     }
 
+    public function test_store_rejects_soft_deleted_category(): void
+    {
+        $context = $this->makeExpenseContext();
+        $context['category']->delete();
+
+        $response = $this
+            ->actingAs($context['user'])
+            ->from(route('transactions.create'))
+            ->post(route('transactions.store'), [
+                'bank_account_id' => $context['bankAccount']->id,
+                'payment_method_id' => $context['paymentMethod']->id,
+                'counterparty_id' => $context['counterparty']->id,
+                'category_id' => $context['category']->id,
+                'installment_number' => 1,
+                'expected_payment_date' => '2026-03-15',
+                'amount' => '90.00',
+                'payment_status' => 'payable',
+                'expense_type' => 'professional',
+                'type' => 'expense',
+            ]);
+
+        $response->assertRedirect(route('transactions.create'));
+        $response->assertSessionHasErrors('category_id');
+        $this->assertDatabaseCount('transaction_group', 0);
+        $this->assertDatabaseCount('transaction', 0);
+    }
+
+    public function test_update_rejects_soft_deleted_category(): void
+    {
+        $context = $this->makeExpenseContext();
+
+        $group = TransactionGroup::query()->create([
+            'organization_id' => $context['organization']->id,
+            'type' => 'expense',
+            'description' => null,
+            'occurred_on' => '2026-03-01',
+            'customer_installments' => 1,
+            'flow_installments' => 1,
+            'anticipation' => false,
+        ]);
+
+        $transaction = Transaction::query()->create([
+            'organization_id' => $context['organization']->id,
+            'transaction_group_id' => $group->id,
+            'bank_account_id' => $context['bankAccount']->id,
+            'payment_method_id' => $context['paymentMethod']->id,
+            'counterparty_id' => $context['counterparty']->id,
+            'category_id' => $context['category']->id,
+            'installment_number' => 1,
+            'expected_payment_date' => '2026-03-10',
+            'payment_date' => null,
+            'amount' => '40.00',
+            'payment_status' => 'payable',
+            'expense_type' => 'professional',
+            'type' => 'expense',
+        ]);
+
+        $deletedCategory = Category::query()->create([
+            'organization_id' => $context['organization']->id,
+            'name' => 'Categoria Removida',
+            'type' => 'expense',
+            'cost_type' => 'fixed',
+        ]);
+        $deletedCategory->delete();
+
+        $response = $this
+            ->actingAs($context['user'])
+            ->from(route('transactions.edit', $transaction))
+            ->put(route('transactions.update', $transaction), [
+                'bank_account_id' => $context['bankAccount']->id,
+                'payment_method_id' => $context['paymentMethod']->id,
+                'counterparty_id' => $context['counterparty']->id,
+                'category_id' => $deletedCategory->id,
+                'expected_payment_date' => '2026-03-10',
+                'amount' => '40.00',
+                'payment_status' => 'payable',
+                'expense_type' => 'professional',
+            ]);
+
+        $response->assertRedirect(route('transactions.edit', $transaction));
+        $response->assertSessionHasErrors('category_id');
+        $transaction->refresh();
+        $this->assertSame($context['category']->id, $transaction->category_id);
+    }
+
     public function test_transaction_group_routes_are_read_only(): void
     {
         $context = $this->makeExpenseContext();
@@ -314,7 +426,7 @@ class TransactionFlowTest extends TestCase
     {
         $organization = Organization::query()->create([
             'name' => 'Fluxy Org',
-            'cnpj' => '12345678000199',
+            'cnpj' => str_pad((string) random_int(1, 99999999999999), 14, '0', STR_PAD_LEFT),
         ]);
 
         $user = User::factory()->create([
@@ -327,6 +439,7 @@ class TransactionFlowTest extends TestCase
         ]);
 
         $paymentMethod = PaymentMethod::query()->create([
+            'organization_id' => $organization->id,
             'name' => 'Pix',
         ]);
 

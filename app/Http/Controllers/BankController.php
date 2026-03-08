@@ -7,21 +7,25 @@ use App\Models\PaymentMethod;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
 
 class BankController extends Controller
 {
     public function index(Request $request)
     {
+        $organizationId = $this->currentOrganizationId();
         $selectedMonth = $this->parseMonth($request->string('month')->toString()) ?? now()->startOfMonth();
         $monthStart = $selectedMonth->copy()->startOfMonth();
         $monthEnd = $selectedMonth->copy()->endOfMonth();
 
         $paymentMethods = PaymentMethod::query()
+            ->where('organization_id', $organizationId)
             ->orderBy('name')
             ->get(['id', 'name']);
 
         $bankAccounts = BankAccount::query()
+            ->where('organization_id', $organizationId)
             ->orderBy('name')
             ->get(['id', 'name']);
 
@@ -45,11 +49,13 @@ class BankController extends Controller
 
         if (Schema::hasTable('transaction')) {
             $totals['income'] = (float) Transaction::query()
+                ->where('organization_id', $organizationId)
                 ->where('type', 'income')
                 ->whereBetween('payment_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                 ->sum('amount');
 
             $totals['expense'] = (float) Transaction::query()
+                ->where('organization_id', $organizationId)
                 ->where('type', 'expense')
                 ->whereBetween('payment_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                 ->sum('amount');
@@ -58,6 +64,7 @@ class BankController extends Controller
 
             $grouped = Transaction::query()
                 ->selectRaw('bank_account_id, payment_method_id, type, SUM(amount) as total_amount')
+                ->where('organization_id', $organizationId)
                 ->whereBetween('payment_date', [$monthStart->toDateString(), $monthEnd->toDateString()])
                 ->groupBy('bank_account_id')
                 ->groupBy('payment_method_id')
@@ -140,5 +147,14 @@ class BankController extends Controller
         } catch (\Throwable $exception) {
             return null;
         }
+    }
+
+    private function currentOrganizationId(): int
+    {
+        $organizationId = (int) Auth::user()?->organization_id;
+
+        abort_if($organizationId <= 0, 403, 'Usuario sem organizacao vinculada.');
+
+        return $organizationId;
     }
 }
